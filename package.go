@@ -121,7 +121,7 @@
 // the function have some other use for it?" While the reader might be barely
 // (or not even) aware of these thoughts, they will nonetheless clutter the mind
 // as the logic increases in scope and complexity. In the rewritten example, the
-// colTypes variant doesn't exist at all. The expression is used directly, which
+// colTypes variable doesn't exist at all. The expression is used directly, which
 // doesn't trigger any of the above questions, and the reader, instinctively
 // knowing that it won't be referred to again, can simply discard that sliver of
 // information. In fact, they will likely skim past the log.Printf call without
@@ -137,25 +137,21 @@
 //     idiomatic, but has the advantage of being usable in any block scope, not
 //     just function-level scope.
 //
-//  2. Not every function must trap errors. Not that the unpublished getPrices
+//  2. Not every function must trap errors. Note that the unpublished getPrices
 //     function uses check.Must/MustN, but doesn't use check.Handle or
 //     check.Catch/CatchN. This is perfectly acceptable usage within a package,
 //     since the published methods will trap errors before they escape.
 //
 //  3. MustN and CatchN, only go up to 4 parameters. To deal with functions that
 //     return more than four return values plus an error, assign their output to
-//     local variables the conventional way then call check.Must(err).
-//
-//  4. In reality, one should generally not create functions with more than four
+//     local variables the conventional way then call check.Must(err).  In
+//     practice, one should generally not create functions with more than four
 //     return values plus an error. They can invariably be redesigned to return
 //     a struct.
 //
 //  5. All instances of returning default values have disappeared in the new
 //     code. This is another important way in which package check reduces
 //     cognitive load, both on the author and the reader.
-//
-//  6. Because package check uses panics to implement error handling, there will
-//     be a performance hit. Further work is pending to evaluate the cost.
 //
 // # Performance considerations
 //
@@ -180,17 +176,18 @@
 // Conventional error handling clocks in at just over 0.3 ns regardless of
 // whether the call succeeds or fails.
 //
-// In contrast, a successful call to check.Handle is almost times slower and
-// almost 30 times slower to check.Catch.
+// In contrast, a successful call to check.Handle is almost 20 times slower and
+// almost 30 times slower when calling check.Catch.
 //
-// Things are much worse for failed calls. check.Handle and check.Catch are 500
-// and 600 times slower, respectively, than conventional error handling.
+// Things are much worse during failures. Failed calls to check.Handle and
+// check.Catch are 500 and 600 times slower, respectively, than conventional
+// error handling.
 //
-// It is pretty clear from this analysis that the check package must be avoided
+// The clear message from this analysis is to avoid package check
 // in performance sensitive code. That said, it is worth keeping things in
 // perspective. A 5–8 ns overhead for successful calls is still very fast and
 // would be perfectly acceptable in most contexts. More thought would need to be
-// given to scenarios where errors are common, but even there, a failed call
+// given to scenarios where errors are common, but even then a failed call
 // still takes a small fraction of the time it takes to perform most forms of
 // I/O.
 package check
