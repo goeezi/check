@@ -17,7 +17,6 @@
 //
 //	func New(driver, dsn string) (*Data, error) {
 //	    conn, err := sql.Open(driver, dsn)
-//
 //	    if err != nil {
 //	        return nil, err
 //	    }
@@ -183,7 +182,7 @@
 // check.Catch are 500 and 600 times slower, respectively, than conventional
 // error handling.
 //
-// The clear message from this analysis is to avoid package check
+// The clear message from this analysis is to avoid using package check
 // in performance sensitive code. That said, it is worth keeping things in
 // perspective. A 5–8 ns overhead for successful calls is still very fast and
 // would be perfectly acceptable in most contexts. More thought would need to be
