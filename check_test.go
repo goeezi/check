@@ -21,6 +21,14 @@ func TestFail(t *testing.T) {
 	})
 }
 
+func TestFailf(t *testing.T) {
+	t.Parallel()
+
+	assert.PanicsWithError(t, "Failfast", func() {
+		check.Failf("Failf%s", "ast")
+	})
+}
+
 func TestPass(t *testing.T) {
 	t.Parallel()
 

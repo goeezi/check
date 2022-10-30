@@ -8,106 +8,75 @@
 // # Example
 //
 // The following example shows a piece of code written in Go's conventional
-// error handling approach.
+// error handling approach on the left diffed with a version using package check
+// on the right.
 //
-//	type Data struct {
-//	    conn             *sql.DB
-//	    selectPricesStmt *sql.Stmt
-//	}
-//
-//	func New(driver, dsn string) (*Data, error) {
-//	    conn, err := sql.Open(driver, dsn)
-//	    if err != nil {
-//	        return nil, err
-//	    }
-//
-//	    return &Data{conn: conn}, nil
-//	}
-//
-//	func (d *Data) GetPrices(symbol string) (open, hi, lo, close float64, err error) {
-//	    if d.selectPricesStmt == nil {
-//	        q, err := d.conn.Prepare("SELECT o, h, l, c FROM prices WHERE symbol = ?")
-//	        if err != nil {
-//	            return 0, 0, 0, 0, err
-//	        }
-//	        d.selectPricesStmt = q
-//	    }
-//
-//	    tx, err := d.conn.Begin()
-//	    if err != nil {
-//	        return 0, 0, 0, 0, err
-//	    }
-//
-//	    return getPrices(tx.Stmt(d.selectPricesStmt), symbol)
-//	}
-//
-//	func getPrices(stmt *sql.Stmt, symbol string) (open, hi, lo, close float64, err error) {
-//	    q, err := stmt.Query()
-//	    if err != nil {
-//	        return 0, 0, 0, 0, err
-//	    }
-//	    colTypes, err := q.ColumnTypes()
-//	    if err != nil {
-//	        return 0, 0, 0, 0, err
-//	    }
-//	    log.Printf("column types: %#v", colTypes)
-//	    if q.Next() {
-//	        err := q.Scan(&open, &hi, &lo, &close)
-//	        if err != nil {
-//	            return 0, 0, 0, 0, err
-//	        }
-//	        if q.Next() {
-//	            return 0, 0, 0, 0, fmt.Errorf("too many results for %q", symbol)
-//	        }
-//	    } else {
-//	        return 0, 0, 0, 0, fmt.Errorf("no results for %q", symbol)
-//	    }
-//	    return
-//	}
-//
-// Below is the above example reworked using package check.
-//
-//	type Data struct {
-//	    conn             *sql.DB
-//	    selectPricesStmt *sql.Stmt
-//	}
-//
-//	func New(driver, dsn string) (_ *Data, err error) {
-//	    defer check.Handle(&err)
-//	    return &Data{conn: check.Must1(sql.Open(driver, dsn))}, nil
-//	}
-//
-//	func (d *Data) GetPrices(symbol string) (open, hi, lo, close float64, err error) {
-//	    return check.Catch4(func() (_, _, _, _ float64) {
-//	        defer check.Handle(&err)
-//	        if d.selectPricesStmt == nil {
-//	            d.selectPricesStmt = check.Must1(
-//	                d.conn.Prepare("SELECT o, h, l, c FROM prices WHERE symbol = ?"))
-//	        }
-//
-//	        tx := check.Must1(d.conn.Begin())
-//
-//	        return getPrices(tx.Stmt(d.selectPricesStmt), symbol)
-//	    })
-//	}
-//
-//	func getPrices(stmt *sql.Stmt, symbol string) (open, hi, lo, close float64) {
-//	    q := check.Must1(stmt.Query())
-//	    log.Printf("column types: %#v", check.Must1(q.ColumnTypes()))
-//	    if q.Next() {
-//	        check.Must(q.Scan(&open, &hi, &lo, &close))
-//	        if q.Next() {
-//	            check.Fail(fmt.Errorf("too many results for %q", symbol))
-//	        }
-//	    } else {
-//	        check.Fail(fmt.Errorf("no results for %q", symbol))
-//	    }
-//	    return
-//	}
+//	type Data struct {                            · type Data struct {
+//	  db        *sql.DB                           ·   db        *sql.DB
+//	  selPrices *sql.Stmt                         ·   selPrices *sql.Stmt
+//	}                                             · }
+//	                                              ·
+//	func New(driver, dsn string) (*Data, error) { |  func New(driver, dsn string) (_ *Data, e error) {
+//	  conn, err := sql.Open(driver, dsn)          |    defer check.Handle(&e)
+//	  if err != nil {                             <
+//	    return nil, err                           <
+//	  }                                           <
+//	  return &Data{db: conn}, nil                 |    return &Data{
+//	                                              >      db: check.Must1(sql.Open(driver, dsn)),
+//	                                              >    }, nil
+//	}                                             · }
+//	                                              ·
+//	func (d *Data) GetPrices(sym string) (        · func (d *Data) GetPrices(sym string) (
+//	  open, hi, lo, close float64, _ error,       |   open, hi, lo, close float64, e error,
+//	) {                                           · ) {
+//	                                              >   defer check.Handle(&e)
+//	  if d.selPrices == nil {                     ·   if d.selPrices == nil {
+//	    q, err := d.db.Prepare(                   |     d.selPrices = check.Must1(d.db.Prepare(
+//	      `SELECT o,h,l,c                         ·       `SELECT o,h,l,c
+//	       FROM price                             ·        FROM price
+//	       WHERE sym=?`)                          |        WHERE sym=?`))
+//	    if err != nil {                           <
+//	      return 0, 0, 0, 0, err                  <
+//	    }                                         <
+//	    d.selPrices = q                           <
+//	  }                                           ·   }
+//	  tx, err := d.db.Begin()                     |   tx := check.Must1(d.db.Begin())
+//	  if err != nil {                             <
+//	    return 0, 0, 0, 0, err                    <
+//	  }                                           <
+//	  return getPrices(tx.Stmt(d.selPrices), sym) |   o, h, l, c := getPrices(tx.Stmt(d.selPrices), sym)
+//	                                              >   return o, h, l, c, nil
+//	}                                             · }
+//	                                              ·
+//	func getPrices(stmt *sql.Stmt, sym string) (  · func getPrices(stmt *sql.Stmt, sym string) (
+//	  open, hi, lo, close float64, _ error,       |   open, hi, lo, close float64,
+//	) {                                           · ) {
+//	  q, err := stmt.Query()                      |   q := check.Must1(stmt.Query())
+//	  if err != nil {                             <
+//	    return 0, 0, 0, 0, err                    <
+//	  }                                           <
+//	  colTypes, err := q.ColumnTypes()            |   log.Printf("cols: %#v", check.Must1(q.ColumnTypes()
+//	  if err != nil {                             <
+//	    return 0, 0, 0, 0, err                    <
+//	  }                                           <
+//	  log.Printf("cols: %#v", colTypes)           <
+//	  if q.Next() {                               ·   if q.Next() {
+//	    err := q.Scan(&open, &hi, &lo, &close)    |     check.Must(q.Scan(&open, &hi, &lo, &close))
+//	    if err != nil {                           <
+//	      return 0, 0, 0, 0, err                  <
+//	    }                                         <
+//	    if q.Next() {                             ·     if q.Next() {
+//	      return 0, 0, 0, 0, fmt.Errorf("> 1 resu…|       check.Failf("> 1 result: %q", sym)
+//	    }                                         ·     }
+//	  } else {                                    ·   } else {
+//	    return 0, 0, 0, 0, fmt.Errorf("no result:…|     check.Failf("no result: %q", sym)
+//	  }                                           ·   }
+//	  return                                      ·   return
+//	}                                             · }
 //
 // The most obvious difference between the two examples is the length of the
-// code. The original weighs in at 36 significant lines of code, while the
-// second is just 24, a reduction of exactly 1/3.
+// code. The original weighs in at 39 significant lines of code, while the
+// second is just 29, a reduction of 25%.
 //
 // A less obvious, but more significant distinction is a reduction from eight
 // internal variables (ignoring input and return parameters) down to just two.
@@ -120,37 +89,29 @@
 // the function have some other use for it?" While the reader might be barely
 // (or not even) aware of these thoughts, they will nonetheless clutter the mind
 // as the logic increases in scope and complexity. In the rewritten example, the
-// colTypes variable doesn't exist at all. The expression is used directly, which
-// doesn't trigger any of the above questions, and the reader, instinctively
-// knowing that it won't be referred to again, can simply discard that sliver of
-// information. In fact, they will likely skim past the log.Printf call without
-// even being consciously aware of it.
+// colTypes variable doesn't exist at all. The expression is used directly,
+// which doesn't trigger any of the above questions, and the reader,
+// instinctively knowing that it won't be referred to again, can simply discard
+// that sliver of information. In fact, they will likely skim past the
+// log.Printf call without even being consciously aware of it.
 //
 // Several other points are worth noting:
 //
-//  1. There are two available methods for trapping errors before they escape
-//     a package: check.Handle and check.Catch/CatchN. The first uses a
-//     conventional deferred function call to recover a panicked error and
-//     convert it back to a returned error. The second uses the same technique
-//     internally, but calls a function to do the work. This second form is less
-//     idiomatic, but has the advantage of being usable in any block scope, not
-//     just function-level scope.
-//
-//  2. Not every function must trap errors. Note that the unpublished getPrices
+//  1. Not every function must trap errors. Note that the unpublished getPrices
 //     function uses check.Must/MustN, but doesn't use check.Handle or
 //     check.Catch/CatchN. This is perfectly acceptable usage within a package,
 //     since the published methods will trap errors before they escape.
 //
-//  3. MustN and CatchN, only go up to 4 parameters. To deal with functions that
+//  2. MustN and CatchN only go up to 4 parameters. To deal with functions that
 //     return more than four return values plus an error, assign their output to
 //     local variables the conventional way then call check.Must(err).  In
 //     practice, one should generally not create functions with more than four
-//     return values plus an error. They can invariably be redesigned to return
+//     return values plus an error. They are usually better redesigned to return
 //     a struct.
 //
-//  5. All instances of returning default values have disappeared in the new
-//     code. This is another important way in which package check reduces
-//     cognitive load, both on the author and the reader.
+//  3. All instances of returning "don't care" zero values have disappeared in
+//     the new code. This is another important way in which package check
+//     reduces cognitive load, both on the author and the reader.
 //
 // # Performance considerations
 //
@@ -182,11 +143,10 @@
 // check.Catch are 500 and 600 times slower, respectively, than conventional
 // error handling.
 //
-// The clear message from this analysis is to avoid using package check
-// in performance sensitive code. That said, it is worth keeping things in
+// The clear message from this analysis is to avoid using package check in
+// performance sensitive code. That said, it is worth keeping things in
 // perspective. A 5–8 ns overhead for successful calls is still very fast and
 // would be perfectly acceptable in most contexts. More thought would need to be
-// given to scenarios where errors are common, but even then a failed call
-// still takes a small fraction of the time it takes to perform most forms of
-// I/O.
+// given to scenarios where errors are common, but even then a failed call still
+// takes a small fraction of the time it takes to perform most forms of I/O.
 package check
