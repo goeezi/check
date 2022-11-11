@@ -41,7 +41,7 @@ func handle(r any, skip int, e *error, transforms ...func(e error) error) {
 			if e == nil {
 				panic(Error{err})
 			}
-			if skip != math.MinInt {
+			if err != nil && skip != math.MinInt {
 				err = errors.Wrap(err, 4+skip)
 			}
 			*e = err
